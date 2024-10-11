@@ -609,6 +609,432 @@ https://www.luogu.com.cn/article/s8um1dj4
 
 ### T9 [AT_agc028_f2](https://www.luogu.com.cn/problem/AT_agc028_f2)
 
+## dottle：构造——人类群星闪耀时
+
+### 1.鸽巢原理
+
+[CF1450C2](https://www.luogu.com.cn/problem/CF1450C2)
+
+![](https://cdn.luogu.com.cn/upload/image_hosting/tezegham.png)
+
+不难发现，这样满足题目要求。
+
+三种颜色的格子分别按照 $(i+j) \bmod 3$ 分为 $3$ 类。只需要满足一类格子全是 `X/O` ，存在另一类格子全是 `O/X` 即可。
+
+$3$ 类格子，从中选 $2$ 个，每两个存在 $2$ 种方案，一共有 $6$ 种修改方案，且总修改数量为 $2k$。
+
+根据抽屉原理，最少的一种修改方案最多为 $\lfloor{\dfrac{3}{k}} \rfloor$ 次。
+
+```
+const int N = 305;
+char s[N][N], ch[3], c[N][N];
+int n, k;
+bool work() {
+    int cnt = 0;
+    R(i, 1, n) {
+        R(j, 1, n) {
+            c[i][j] = s[i][j];
+            if (s[i][j] == '.' || ch[(i + j) % 3] == '.') continue;
+            if (s[i][j] != ch[(i + j) % 3]) ++cnt, c[i][j] = ch[(i + j) % 3];
+        }
+    }
+    if (cnt <= k / 3) {
+        R(i, 1, n) {
+            R(j, 1, n) printf("%c", c[i][j]);
+            ptc('\n');
+        }
+        return 1;
+    }
+    return 0;
+}
+void solve() {
+    cin >> n; k = 0;
+    R(i, 1, n) scanf("%s", s[i] + 1);
+    R(i, 1, n) R(j, 1, n) if (s[i][j] != '.') ++k;
+    ch[0] = '.', ch[1] = 'X', ch[2] = 'O'; if (work()) return ;
+    ch[0] = '.', ch[1] = 'O', ch[2] = 'X'; if (work()) return ;
+    ch[0] = 'X', ch[1] = '.', ch[2] = 'O'; if (work()) return ;
+    ch[0] = 'X', ch[1] = 'O', ch[2] = '.'; if (work()) return ;
+    ch[0] = 'O', ch[1] = '.', ch[2] = 'X'; if (work()) return ;
+    ch[0] = 'O', ch[1] = 'X', ch[2] = '.'; if (work()) return ;
+}
+
+signed main() {
+    int T; cin >> T;
+    while (T--) solve();   
+    return 0;
+}
+```
+
+### 2.dfs树
+
+[P5811](https://www.luogu.com.cn/problem/P5811)
+
+**Hint**. 不妨设 $a\le b\le c$，你觉得哪个部分不必要是连通块。先思考树上的情况。
+
+首先注意到我们一定能够从连通块中不断删点得到更小的连通块，染出两个大小为 $a,b$ 的连通块显然是更简单的。所以问题转化成把原图划分成两个连通块，一个大小至少 $a$，一个大小至少 $b$。
+
+先考虑树上的情况，显然枚举每一条树边，并判断两端大小是否满足即可。
+
+转到图上，可以先跑一边 DFS 树，转为树上的情况，若存在一条树边满足则直接输出答案。
+
+否则，考虑重心的每个子树。注意到 $b\le \dfrac{n}{2}$，而重心具有 $\forall siz \le \dfrac{n}{2}$ 的性质，如果重心的一个子树 $siz \ge a$，则 $n-siz\ge \dfrac{n}{2} \ge b$，一定在前面已经被判定为合法。所以，重心连接的所有子树一定 $siz < a$。
+
+如果一个子树内没有连向重心祖先的返祖边，则这个子树必然和重心属于同一个连通块（否则无法让这棵子树所在连通块大小 $\ge a$）。
+
+把所有这样的子树和重心合成一个连通块，如果这个连通块的大小大于 $n-a$ 则无解。
+
+否则构造一个初始解，重心的子树放在 $B$ 集合，其余部分放在 $A$ 集合。
+
+显然 $|B|>n-a,|A|<a$。依次把 $B$ 集合中，所有有连向重心祖先返祖边的子树移到 $A$ 集合中，直到 $|A|\ge a$ （等价于 $|B| \le n - a$）为止。此时 $|A|\ge a,|B|\le n-a$ ，现在只需满足 $|B|\ge b$ 即可。
+
+可以证明这样的到的 $|B|\ge b$。注意到 $B$ 集合中子树大小都 $<a$，对于 $|B|$ 从 $>n-a$ 变为 $\le n-a$ 的一次变换，变换后的 $|B| > n-a-a>n-a-b=c\ge b$ 。得证。
+
+在实现时可以用 $low$ 数组判断返祖边，注意输出时根据调换的 $a,b,c$ 调整输出。
+
+```
+const int N = 3e5 + 5;
+int n, m, A, B, C, rt, idx, sz[N], mx[N], ans[N], pa[N], low[N], dfn[N];
+bool vis[N];
+vector <int> E[N], G[N];
+void dfstree(int x) {
+    dfn[x] = low[x] = ++idx; 
+    for (int v : G[x]) {
+        if (vis[v]) {
+            low[x] = min(low[x], dfn[v]);
+            continue;
+        }
+        vis[v] = 1;
+        E[x].push_back(v), E[v].push_back(x);
+        pa[v] = x;
+        dfstree(v);
+        low[x] = min(low[x], low[v]);
+    }
+}
+void init(int x, int fa) {
+    sz[x] = 1; 
+    for (int v : E[x]) {
+        if (v == fa) continue;
+        init(v, x);
+        sz[x] += sz[v];
+        mx[x] = max(mx[x], sz[v]);
+    }
+    mx[x] = max(mx[x], n - sz[x]);
+    if (!rt || mx[x] < mx[rt]) rt = x;
+}
+void color(int x, int fa, int col, int &siz) {
+    if (!siz || vis[x]) return ; 
+    vis[x] = 1;
+    ans[x] = col, --siz;
+    for (int v : E[x]) {
+        if (v == fa) continue;
+        color(v, x, col, siz);
+    }
+}
+vector <int> son1, son2;
+int id[4];
+void print() {
+    R(i, 1, n) printf("%d ", id[ans[i]]);
+    exit(0);
+}
+signed main() {
+    read(n, m, A, B, C);
+    if (A <= B && B <= C) id[1] = 1, id[2] = 2, id[3] = 3;
+    else if (A <= C && C <= B) id[1] = 1, id[2] = 3, id[3] = 2;
+    else if (B <= A && A <= C) id[1] = 2, id[2] = 1, id[3] = 3;
+    else if (B <= C && C <= A) id[1] = 2, id[2] = 3, id[3] = 1;
+    else if (C <= A && A <= B) id[1] = 3, id[2] = 1, id[3] = 2;
+    else id[1] = 3, id[2] = 2, id[3] = 1;
+    if (B > C) swap(B, C);
+    if (A > B) {
+        swap(A, B);
+        if (B > C) swap(B, C);
+    }
+    R(i, 1, m) {
+        int u, v; read(u, v); ++u, ++v;
+        G[u].push_back(v), G[v].push_back(u);
+    }
+    vis[1] = 1;
+    dfstree(1); 
+    memset(vis, 0, sizeof vis); R(i, 1, n) ans[i] = 3;
+    init(1, 0); 
+    R(i, 1, n) {
+        if (sz[i] >= A && (n - sz[i]) >= B) color(i, pa[i], 1, A), color(pa[i], 0, 2, B), print();
+        else if ((n - sz[i]) >= A && sz[i] >= B) color(i, pa[i], 2, B), color(pa[i], 0, 1, A), print();
+    }
+    for (int v : E[rt]) {
+        if (v == pa[rt]) continue;
+        if (low[v] < dfn[rt]) son1.push_back(v);
+        else son2.push_back(v);
+    }
+    int sum = 1;
+    for (int v : son2) sum += sz[v];
+    if (sum > n - A) {
+        R(i, 1, n) printf("%d ", 0);
+        return 0;
+    }
+    int oa = A;
+    color(pa[rt], rt, 1, A); 
+    sum = sz[rt];
+    for (int v : son1) {
+        sum -= sz[v];
+        color(v, rt, 1, A);
+        if (sum <= n - oa) break;
+    }
+    color(rt, pa[rt], 2, B);
+    print();
+    return 0;
+}
+```
+
+[CF1205D](https://www.luogu.com.cn/problem/CF1205D)
+
+**Hint**. 对数字敏感一些，$\dfrac{2n^2}{9}$ 可以分解成什么？ 
+
+令 $ c $ 为树的重心。以 $ c $ 为根节点，令 $ s_1, s_2, \dots, s_k $ 成为其子节点的子树大小。由重心的性质， $ s_i \le \frac{n}{2}$ 。我们可以将子节点的子树分成两组，使得每组的大小至少为 $ \lceil \frac{n-1}{3} \rceil $ 。
+
+证明：若至少有 $ 4 $ 棵子树，则其中一定存在两棵的顶点总数不超过 $ \frac{n}{2} $ 个，然后将它们合并。当剩下 $ 3 $ 棵子树时，我们令 $a, b, c$ 为 $3$ 棵子树的大小，有 $a\le b\le c, a+b+c=n-1$， 将两棵较小的子树 $a,b$ 合并为一组，不难发现 $a+b=n-c-1 \ge n-1-\frac{n}{2} \ge \lceil \frac{n-1}{3} \rceil$，$c\ge \lceil \frac{n-1}{3} \rceil$。
+
+（实际上，我们将 $s$ 排序后，选取一段前缀直到 $sum\ge \lceil \frac{n-1}{3} \rceil$ 即可。）
+
+令第一组有 $A$ 个顶点，第二组有 $ B$ 个顶点。们将数字放在 $A$ 中以及 $ c $ 和 $A$ 之间的边上，使 $ c $ 到第一组顶点的距离为 $ 1, 2, \dots, A $ 。类似地，我们使从 $ c $ 到第二组顶点的距离等于 $ (A + 1), 2 (A + 1), \dots, B (A + 1) $ 。显然从 $ 1 $ 到 $ (A + 1) (B + 1) -1 $ 的每个数字都可以作为第一组中某个顶点与第二组中某个顶点之间的距离。接下来只需证明$ (A + 1) (B + 1) -1 $ $\ge$ $ \frac {2n ^ 2} {9} $ 。
+
+证明：$f(A)=(A+1)(B+1)-1=(A+1)(n-A)-1=-A^2+(n-1)A+n-1$ 是一个关于 $A$ 的开口向下的二次函数，在定义域内最小值在 $\frac{n-1}{3}$ 取得，此时 $f(A)=(\frac{n + 2 }{3}) (\frac{2n + 1}{3}) - 1 = \frac{2n ^ 2 + 5n + 3}{9} - 1 \ge \frac{2n ^ 2}{9}$。
+
+```
+const int N = 1e6 + 5;
+int n, rt, sz[N];
+vector <int> E[N];
+void init(int x, int fa) {
+    sz[x] = 1; int mx = 0;
+    for (int v : E[x]) {
+        if (v == fa) continue;
+        init(v, x);
+        sz[x] += sz[v];
+        mx = max(mx, sz[v]);
+    }
+    mx = max(mx, n - sz[x]);
+    if (mx * 2 <= n) rt = x;
+}
+int dfn[N], lst, tot, val;
+void dfs(int x, int fa) {
+    sz[x] = 1; 
+    for (int v : E[x]) {
+        if (v == fa) continue;
+        dfs(v, x);
+        sz[x] += sz[v];
+    }
+}
+vector <tuple <int, int, int> > ans;
+void dfs2(int x, int fa) {
+    dfn[x] = ++tot;
+    ans.push_back({fa, x, (dfn[x] - dfn[fa]) * val});
+    for (int v : E[x]) {
+        if (v == fa) continue;
+        dfs2(v, x);
+    }
+}
+signed main() {
+    cin >> n; if (n == 1) return 0;
+    R(i, 1, n - 1) {
+        int u, v; cin >> u >> v;
+        E[u].push_back(v), E[v].push_back(u);
+    }
+    init(1, 0); dfs(rt, 0);
+    sort(E[rt].begin(), E[rt].end(), [&](int x, int y) {return sz[x] < sz[y];});
+    int sum = 0; int lim = ceil((n - 1) * 1.0 / 3); int pos;
+    for (int i = 0; i < E[rt].size(); ++i) {
+        int v = E[rt][i];
+        sum += sz[v];
+        if (sum >= lim) {pos = i; break;}
+    }
+    val = 1;
+    for (int i = 0; i <= pos; ++i) dfs2(E[rt][i], rt); val = sum + 1; tot = 0;
+    for (int i = pos + 1; i < E[rt].size(); ++i) dfs2(E[rt][i], rt);
+    for (auto t : ans) cout << get<0>(t) << ' ' << get<1>(t) << ' ' << get<2>(t) << '\n';
+    return 0;
+}
+```
+
+
+
+[uoj670](https://uoj.ac/problem/670)
+
+[sol](https://www.cnblogs.com/apjifengc/p/17306139.html)
+
+### 3.图上构造
+
+[CF1270G](https://www.luogu.com.cn/problem/CF1270G)
+
+将题目中的条件移项得到 $1\le i-a_i\le n$，这启示我们使用 $i-a_i$。
+
+$i$ 向 $i-a_i$ 连边，输出图中任意一个环即可。
+
+证明：
+
+设 $S$  为图中一个环对应的点集。
+
+$ S $ 形成了环，则 $ \sum_{i\in S}i=\sum_{i\in S}i-a_i $ 。
+
+移项得 $\sum a_i=0$。
+
+本题在场上卡了一众高手（tourist,jiangly,benq等)，虽然感觉也没有那么难。
+
+```
+const int N = 1e6 + 5; 
+int n, a[N], to[N];
+bool vis[N];
+void solve() {
+    cin >> n;
+    R(i, 1, n) cin >> a[i], to[i] = i - a[i], vis[i] = 0;
+    vector <int> ans;
+    int now = 1;
+    while (!vis[now]) {
+        vis[now] = 1;
+        now = to[now];
+    }
+    ans.push_back(now); now = to[now];
+    while (now != ans[0]) ans.push_back(now), now = to[now];
+    cout << ans.size() << '\n';
+    for (int i = 0; i < ans.size(); ++i) cout << ans[i] << ' '; cout << '\n';
+}
+signed main() {
+    ios :: sync_with_stdio(0); cin.tie(0), cout.tie(0);
+    int T = 1; cin >> T;
+    while (T--) solve();
+    return 0;
+}
+```
+
+### 4.归纳法
+
+[ARC122E](https://www.luogu.com.cn/problem/AT_arc122_e)
+
+使用归纳法。
+
+对于 $n>1$，我们考虑找出这个序列的最后一个数。
+
+最后一个数需要满足前面数的 $\operatorname{lcm}$ 不是它的倍数，也就是说 $a_i \not \mid \operatorname{lcm}_{j \ne i }a_j$。
+
+这个式子相当于 $\operatorname{gcd}(a_i,\operatorname{lcm}_{j \ne i }a_j) < a_i$。
+
+但是 $\operatorname{lcm}$ 太大，把式子转化一下。
+
+$\operatorname{lcm}_{j\ne i}\{\gcd(a_j,a_i)\}< a_i $ 。
+
+满足这个式子的 $a_i$ 则可以作为序列的最后一个数，注意到 $\operatorname{lcm}$ 随着问题规模的减小不会上升，故找到一个可行的 $a_i$ 就放入答案是正确的。问题变为规模为 $n-1$ 的问题，递归即可。
+
+```
+#define int ll
+const int N = 500 + 5;
+int n; 
+vector <int> ans;
+int lcm(int x, int y) {return x / __gcd(x, y) * y;}
+void solve(vector <int> v) {
+    if (v.size() == 1) return ans.push_back(v[0]), void();
+    R(i, 0, v.size() - 1) {
+        int L = 1;
+        R(j, 0, v.size() - 1) {
+            if (i == j) continue;
+            L = lcm(L, __gcd(v[i], v[j]));
+        }   
+        if (L < v[i]) {
+            ans.push_back(v[i]);
+            vector <int> t; 
+            R(j, 0, v.size() - 1) if (i != j) t.push_back(v[j]);
+            solve(t);
+            return ;
+        }
+    }
+    puts("No"); exit(0);
+}
+signed main() {
+    cin >> n; vector <int> v(n);
+    R(i, 1, n) cin >> v[i - 1];
+    solve(v);
+    reverse(ans.begin(), ans.end());
+    puts("Yes");
+    for (int x : ans) cout << x << ' ';
+    return 0;
+}
+```
+
+[CF1637G](https://www.luogu.com.cn/problem/CF1637G)
+
+略。
+
+### 5.构造思想的应用
+
+[CF1658F](https://www.luogu.com.cn/problem/CF1658F)
+
+首先，令 $a,b$ 分别为 $0,1$ 的个数。那么 $1$ 的数量 $cnt=\dfrac{bm}{n}$。若 $bm$ 不为 $n$ 的倍数无解。
+
+将数组首尾连接为一个环。
+
+给出一个结论：在环上一定有一个长度为 $m$ 符合条件的区间，故答案上界为 $2$。
+
+给出一个观察：设 $c_i =$ $s[i \dots i + m - 1]$ 中 $\texttt{1}$ 的数量（此处数组首位连接为环形数组）。
+
+不难发现有 $|c_i-c_{i+1}| \leq 1$ ，并且对于所有 $y$ 满足 $min(c_i) \leq y \leq max(c_i)$ ，存在 $c_i = y$ 。
+
+若所有子串都小于/大于整串密度显然是不可能的，根据上面的观察，中间必然经过一个字串密度等于原串密度。
+
+```
+#define int ll
+const int N = 4e5 + 5;
+int n, m, s[N];
+void solve() {
+    cin >> n >> m; int a = 0, b = 0;
+    R(i, 1, n) {
+        s[i] = s[i - 1];
+        char c; cin >> c;
+        if (c == '0') ++a;
+        else ++b, s[i]++;
+    }
+    if (b * m % (a + b)) return puts("-1"), void();
+    R(i, m, n) {
+        int cnt = s[i] - s[i - m];
+        if (b * m == cnt * n) {
+            cout << 1 << '\n';
+            cout << i - m + 1 << ' ' << i << '\n';
+            return ;
+        }
+    }
+    R(i, 1, m - 1) {
+        int cnt = s[i] + s[n] - s[n - (m - i)];
+        if (b * m == cnt * n) {
+            cout << 2 << '\n';
+            cout << 1 << ' ' << i << '\n';
+            cout << n - (m - i) + 1 << ' ' << n << '\n';
+            return ;
+        }
+    }
+}
+signed main() {
+    int T; cin >> T;
+    while (T--) solve();    
+    return 0;
+}
+```
+
+[CF1622F](https://www.luogu.com.cn/problem/CF1622F)
+
+发现答案下界是 $n-3$。
+
+以下设 $B$ 为去掉的数的集合。
+
+$$
+\prod\limits_{i=1}^{2k}i! =
+2^kk!
+\left(\prod\limits_{i=1}^{k}(2i-1)!\right)^2
+$$
+
+$n\equiv0\pmod{4}$ 时，取 $B=\{\frac{n}{2}\}$ 即可。
+
+$n\equiv2\pmod{4}$ 时，取 $B=\{2,\frac{n}{2}\}$ 即可。
+
+$n\equiv1\pmod{2}$ 时，去掉 $n!$ 这项后规模减小 $1$，成为偶数，变为上述两种情况。
+
 ## 2024.10.6 模拟赛
 
 ### T1 饼干
@@ -809,7 +1235,15 @@ skipped
 
 AC 自动机上 dp。
 
-[P4590](https://www.luogu.com.cn/problem/P4590)【待补充】
+[P4590](https://www.luogu.com.cn/problem/P4590)
+
+我们 dp of dp 的板子。
+
+考虑没有 LCS 的问题，我们容易有一个 dp $f_{i,j}$ 表示处理了兑奖串前 $i$ 位，目前 `NOI` 子串匹配到第 $j$ 位的方案数。
+
+然后考虑我们如何记录 LCS 的长度。不妨回顾已知兑奖串时我们需要用一个 dp 来计算 LCS 的长度，那么我们在这里也必然需要用一个 dp 来计算。那么只能直接把 $f_i$ 处的 LCS 的 dp 数组塞进状态，然后每次 $i-1\to i$ 转移的同时也转移 LCS 的 dp，这是简单的。
+
+注意 LCS 的 dp 数组不能直接塞。但我们可以塞 LCS 数组的差分，这样就只有 $0/1$ 了。另一个理解是我们塞奖章串当中 LCS 相匹配的位置。
 
 [P5371](https://www.luogu.com.cn/problem/P5371)
 
@@ -903,12 +1337,49 @@ n - i + 2 & 3k + 2 \leq i \leq 4k + 1
 \end{matrix}\right.
 $$
 
-《不难验证符合条件》
+-----------------
+
+题解就是答辩。
+
+显然题目可以转化成找一个排列 $p$ 使得 $|i-p_i|$ 不重不漏地取到 $0$ 到 $n-1$，我们考虑把
 
 #### T3
 
-![](https://s21.ax1x.com/2024/10/11/pAYZ5Md.png)
+[[ARC111F] Do you like query problems?](https://www.luogu.com.cn/problem/AT_arc111_f)
+
+疑似是史上最水的 ARC F，但是 *3100。
+
+显然考虑拆位，我们计算每一位被算进多少次和，然后
 
 #### T4
 
 CF506E
+
+### 2024.10.11 课堂分享
+
+#### T1 [AGC025E](https://www.luogu.com.cn/problem/AT_agc025_e)
+
+> Hint 1：考虑答案上界：令第 $i$ 条边被经过次数为 $c_i$，则答案上界为 $\sum{\min(c_i,2)}$。\
+> Hint 2：考虑当所有 $2 \mid c_i$ 的做法。注意到此时每一条链的端点也被覆盖了偶数次，那么我们将每一条链的两个端点连一条边，直接跑一次欧拉回路给无向边定向。
+
+继续延续 Hint 2 的思路，将一条链的两个端点连边。但是会有边被覆盖奇数次，显然的，如果我们满足了两种方向的路径覆盖次数的差不超过 $1$ 一定是满足最优策略的。
+
+考虑将度数不是偶数的点
+
+
+#### T2 [CF1329D](https://www.luogu.com.cn/problem/CF1329D)
+
+> Hint 1：考虑答案下界：；令 $c_i = \sum_{j = 1}^{n - 1}[a_j = i \wedge a_{j + 1} = i]$，则答案下界为 $\max(1,\max{c_i + 1},\frac{\sum{c_i}}{2})$。
+
+#### T3 [CF1586I](https://www.luogu.com.cn/problem/CF1586I)
+
+
+#### T4 [CF1994D](https://www.luogu.com.cn/problem/CF1994D)
+
+#### T5 [ARC182C](https://www.luogu.com.cn/problem/AT_arc182_c)
+
+#### T6 [AT_dwacon6th_prelims_c](https://www.luogu.com.cn/problem/AT_dwacon6th_prelims_c)
+
+#### T7 [P10694](https://www.luogu.com.cn/problem/P10694)
+
+#### T8 [AGC013E](https://www.luogu.com.cn/problem/AT_agc013_e)
